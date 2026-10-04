@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Ephere — запись в бар</title>
+<style>
+:root{--bg:#0e0d0c;--card:#181614;--line:#2a2622;--tx:#f3ece2;--mut:#9a9086;--ac:#e0a043;--acx:#1a1104;--ok:#7fc08a;--bad:#e5766a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--tx);font:16px/1.4 -apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+main{padding:16px 16px calc(150px + env(safe-area-inset-bottom,0px));max-width:520px;margin:0 auto}
+h1{font-size:28px;margin:0 0 4px;letter-spacing:.5px}h2{font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);margin:22px 0 10px;font-weight:600}
+.hero{border-radius:20px;padding:26px 20px;background:radial-gradient(120% 90% at 85% 0,#5a3a12 0,#1b1410 55%,#0e0d0c 100%);border:1px solid var(--line)}
+.hero p{color:var(--mut);margin:6px 0 18px}.price{font-size:15px;color:var(--ac);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.row{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.chip{flex:0 0 auto;min-width:64px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--card);text-align:center}
+.chip small{display:block;color:var(--mut);font-size:12px}.chip[aria-pressed=true]{border-color:var(--ac);background:#2a1d0a}
+.chip[disabled]{opacity:.35;cursor:not-allowed}
+.btn{width:100%;min-height:50px;border:0;border-radius:14px;background:var(--ac);color:var(--acx);font-weight:700}
+.btn:disabled{opacity:.4}.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--tx)}.btn.sm{min-height:40px;width:auto;padding:0 14px}
+.zone{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;margin-bottom:8px}
+.zone[aria-pressed=true]{border-color:var(--ac)}.zone small{color:var(--mut);display:block}
+.step{display:flex;align-items:center;gap:14px}.step b{font-size:22px;min-width:28px;text-align:center}
+.rnd{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:22px}
+input[type=text]{width:100%;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--tx);padding:0 12px;font:inherit}
+label.chk{display:flex;gap:10px;align-items:flex-start;color:var(--mut);font-size:14px;margin-top:12px}
+label.chk input{width:22px;height:22px;accent-color:var(--ac);flex:0 0 auto}
+.bar{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--bg) 22%);padding:18px 16px 0}
+.cta{max-width:520px;margin:0 auto 8px}
+nav{display:flex;max-width:520px;margin:0 auto;border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg)}
+nav button{flex:1;min-height:52px;background:none;border:0;color:var(--mut);font-size:13px}
+nav button[aria-current=page]{color:var(--ac);font-weight:700}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mut)}
+.tag.ok{color:var(--ok);border-color:#2d4a33}.tag.bad{color:var(--bad);border-color:#5a2d28}
+.ticket{text-align:center}.qr{background:#fff;padding:12px;border-radius:12px;display:inline-block;margin:12px 0}
+.err{color:var(--bad);font-size:14px;margin-top:8px}.muted{color:var(--mut);font-size:14px}.empty{text-align:center;color:var(--mut);padding:40px 10px}
+ul.rules{margin:0;padding-left:18px;color:var(--mut);font-size:14px}ul.rules li{margin:4px 0}
+@media (prefers-reduced-motion:no-preference){.chip,.btn{transition:background .15s,border-color .15s}}
+</style>
+</head>
+<body>
+<main id="app" aria-live="polite"></main>
+<div class="bar"><div class="cta" id="cta"></div><nav id="nav" aria-label="Разделы"></nav></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+(function(){
+var PRICE=1500,CAP=40,SLOTS=['21:00','23:00','01:00'],CANCEL_H=6;
+var ZONES=[{id:'hall',n:'Общий зал',d:'Свободная посадка'},{id:'bar',n:'Барная стойка',d:'Места у бара, до 4 гостей'},{id:'vip',n:'VIP-диван',d:'Отдельная зона, до 8 гостей'}];
+var DN=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'],MN=['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+var tg=window.Telegram&&window.Telegram.WebApp;if(tg){try{tg.ready();tg.expand();}catch(e){}}
+var tgUser=tg&&tg.initDataUnsafe&&tg.initDataUnsafe.user;
+function ld(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+function sv(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+var profile=ld('eph_profile',{name:tgUser?[tgUser.first_name,tgUser.last_name].filter(Boolean).join(' '):'',adult:false});
+var visits=ld('eph_visits',[]);
+var S={view:'home',date:null,slot:null,guests:2,zone:'hall',err:'',last:null};
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function money(n){return n.toLocaleString('ru-RU')+' ₽'}
+function key(d){return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()}
+function days(){var o=[],d=new Date();d.setHours(0,0,0,0);for(var i=0;i<21&&o.length<6;i++){var x=new Date(d.getTime()+i*864e5);if([4,5,6].indexOf(x.getDay())>-1)o.push(x)}return o}
+function startOf(k,slot){var p=k.split('-'),h=+slot.slice(0,2),d=new Date(+p[0],+p[1]-1,+p[2],h,0);if(h<12)d=new Date(d.getTime()+864e5);return d}
+function taken(k,slot){var h=0,s=k+slot;for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%97;var base=8+h%26;var mine=visits.filter(function(v){return v.k===k&&v.slot===slot&&v.st==='ok'}).reduce(function(a,v){return a+v.guests},0);return base+mine}
+function free(k,slot){return Math.max(0,CAP-taken(k,slot))}
+function haptic(){try{tg.HapticFeedback.impactOccurred('light')}catch(e){}}
+function zname(id){return ZONES.filter(function(z){return z.id===id})[0].n}
+
+function home(){return '<div class="hero"><h1>Ephere</h1><p>Коктейльный бар. Живой звук, свет и ночь до утра. Чт–Сб, 21:00–05:00.</p><div class="price">Вход — '+money(PRICE)+' с человека</div></div>'+
+'<h2>Правила</h2><div class="card"><ul class="rules"><li>Вход строго 18+, с документом.</li><li>Дресс-код: smart casual, без спортивной одежды.</li><li>Бесплатная отмена за '+CANCEL_H+' ч до начала, позже вход не возвращается.</li><li>Администрация вправе отказать во входе.</li><li>Оплата входа — на месте, по QR-билету.</li></ul></div>'}
+
+function book(){var ds=days(),h='<h1>Запись</h1><h2>Дата</h2><div class="row">';
+ds.forEach(function(d){var k=key(d),on=S.date===k;h+='<button class="chip" data-act="date" data-v="'+k+'" aria-pressed="'+on+'">'+d.getDate()+' '+MN[d.getMonth()]+'<small>'+DN[d.getDay()]+'</small></button>'});
+h+='</div><h2>Время</h2>';
+if(!S.date)h+='<p class="muted">Сначала выберите дату.</p>';else{h+='<div class="row">';SLOTS.forEach(function(s){var f=free(S.date,s),past=startOf(S.date,s)<new Date();h+='<button class="chip" data-act="slot" data-v="'+s+'" aria-pressed="'+(S.slot===s)+'"'+(f<1||past?' disabled':'')+'>'+s+'<small>'+(past?'прошло':f<1?'мест нет':'свободно '+f)+'</small></button>'});h+='</div>'}
+h+='<h2>Гостей</h2><div class="card step"><button class="rnd" data-act="g-" aria-label="Меньше гостей">−</button><b>'+S.guests+'</b><button class="rnd" data-act="g+" aria-label="Больше гостей">+</button><span class="muted">Максимум 8</span></div>'+
+'<h2>Зона</h2>';ZONES.forEach(function(z){h+='<button class="chip zone" data-act="zone" data-v="'+z.id+'" aria-pressed="'+(S.zone===z.id)+'"><span>'+z.n+'<small>'+z.d+'</small></span></button>'});
+h+='<h2>Ваши данные</h2><input type="text" id="nm" placeholder="Имя гостя" autocomplete="name" value="'+esc(profile.name)+'" aria-label="Имя гостя">'+
+'<label class="chk"><input type="checkbox" id="ad"'+(profile.adult?' checked':'')+'><span>Мне исполнилось 18 лет, я принимаю правила бара</span></label>'+(S.err?'<div class="err" role="alert">'+esc(S.err)+'</div>':'');return h}
+
+function ticket(v){return '<div class="card ticket"><span class="tag ok">Бронь подтверждена</span><h1 style="margin-top:10px">Ephere</h1><div>'+esc(v.label)+'</div><div class="qr" id="qr"></div><div><b>'+esc(v.id)+'</b></div><p class="muted">'+v.guests+' гост. · '+zname(v.zone)+' · к оплате на входе '+money(v.guests*PRICE)+'</p></div>'}
+function done(){return '<h1>Готово</h1>'+ticket(S.last)+'<p class="muted">Билет сохранён в разделе «Мои визиты». Покажите QR на входе.</p>'}
+
+function mine(){var h='<h1>Мои визиты</h1>';if(!visits.length)return h+'<div class="empty">Пока нет записей.<br>Выберите дату и приходите.</div>';
+visits.slice().sort(function(a,b){return startOf(b.k,b.slot)-startOf(a.k,a.slot)}).forEach(function(v){var st=v.st==='ok'?(startOf(v.k,v.slot)<new Date()?['прошёл','']:['подтверждена','ok']):['отменена','bad'];
+var can=v.st==='ok'&&startOf(v.k,v.slot)-new Date()>CANCEL_H*36e5;
+h+='<div class="card" style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><b>'+esc(v.label)+'</b><span class="tag '+st[1]+'">'+st[0]+'</span></div><div class="muted">'+v.guests+' гост. · '+zname(v.zone)+' · '+money(v.guests*PRICE)+'</div><div class="muted">'+esc(v.id)+'</div>'+
+(v.st==='ok'?'<div style="display:flex;gap:8px;margin-top:10px"><button class="btn sm ghost" data-act="show" data-v="'+v.id+'">Показать QR</button>'+(can?'<button class="btn sm ghost" data-act="cancel" data-v="'+v.id+'">Отменить</button>':'<span class="muted" style="align-self:center">отмена закрыта</span>')+'</div>':'')+'</div>'});return h}
+
+function render(){var a=document.getElementById('app'),c=document.getElementById('cta'),n=document.getElementById('nav');
+a.innerHTML=S.view==='home'?home():S.view==='book'?book():S.view==='done'?done():mine();
+var cta='';if(S.view==='home')cta='<button class="btn" data-act="go-book">Записаться</button>';
+else if(S.view==='book'){var ok=S.date&&S.slot;cta='<button class="btn" data-act="submit"'+(ok?'':' disabled')+'>Забронировать'+(ok?' · '+money(S.guests*PRICE):'')+'</button>'}
+else if(S.view==='done')cta='<button class="btn ghost" data-act="go-visits">Мои визиты</button>';
+c.innerHTML=cta;
+var tabs=[['home','Главная'],['book','Запись'],['visits','Мои визиты']],cur=S.view==='done'?'book':S.view;
+n.innerHTML=tabs.map(function(t){return '<button data-act="tab" data-v="'+t[0]+'"'+(t[0]===cur?' aria-current="page"':'')+'>'+t[1]+'</button>'}).join('');
+if(S.view==='done'||S.view==='qrshow')drawQR()}
+function drawQR(){var el=document.getElementById('qr');if(!el||!S.last)return;var t='EPH|'+S.last.id+'|'+S.last.k+'|'+S.last.slot+'|'+S.last.guests;
+if(window.QRCode){new QRCode(el,{text:t,width:180,height:180})}else{el.style.color='#000';el.textContent=S.last.id}}
+function saveForm(){var n=document.getElementById('nm'),c=document.getElementById('ad');if(n)profile.name=n.value.trim();if(c)profile.adult=c.checked;sv('eph_profile',profile)}
+function submit(){saveForm();S.err='';
+if(!profile.name){S.err='Укажите имя гостя.'}else if(!profile.adult){S.err='Подтвердите, что вам есть 18 лет.'}else if(free(S.date,S.slot)<S.guests){S.err='В этом слоте осталось '+free(S.date,S.slot)+' мест. Уменьшите число гостей или выберите другое время.'}
+if(S.err){render();return}
+var p=S.date.split('-'),id='EPH-'+Math.random().toString(36).slice(2,8).toUpperCase();
+var v={id:id,k:S.date,slot:S.slot,guests:S.guests,zone:S.zone,name:profile.name,st:'ok',label:(+p[2])+' '+MN[+p[1]-1]+', '+S.slot};
+visits.push(v);sv('eph_visits',visits);S.last=v;S.view='done';S.date=S.slot=null;S.guests=2;haptic();render();window.scrollTo(0,0)}
+document.addEventListener('click',function(e){var b=e.target.closest('[data-act]');if(!b)return;var a=b.dataset.act,v=b.dataset.v;
+if(S.view==='book')saveForm();
+if(a==='tab'){S.view=v;S.err=''}
+else if(a==='go-book')S.view='book';else if(a==='go-visits')S.view='visits';
+else if(a==='date'){S.date=v;S.slot=null;S.err=''}else if(a==='slot')S.slot=v;
+else if(a==='g+')S.guests=Math.min(8,S.guests+1);else if(a==='g-')S.guests=Math.max(1,S.guests-1);
+else if(a==='zone')S.zone=v;
+else if(a==='submit'){submit();return}
+else if(a==='cancel'){if(confirm('Отменить бронь '+v+'?')){visits.forEach(function(x){if(x.id===v)x.st='cancel'});sv('eph_visits',visits)}}
+else if(a==='show'){S.last=visits.filter(function(x){return x.id===v})[0];S.view='done'}
+haptic();render()});
+render();
+})();
+</script>
+</body>
+</html>
